@@ -1,9 +1,21 @@
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 
+let currentRole = null;
+
 function setStatus(msg, isError = false) {
   statusEl.textContent = msg;
   statusEl.classList.toggle("error", isError);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[c]);
 }
 
 function currentTarget() {
@@ -33,12 +45,8 @@ function toggleVersionFields() {
 $("version").addEventListener("change", toggleVersionFields);
 toggleVersionFields();
 
-async function callApi(path, body) {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+async function callApi(path, options = {}) {
+  const res = await fetch(path, options);
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -48,7 +56,16 @@ async function callApi(path, body) {
     }
     throw new Error(detail);
   }
+  if (res.status === 204) return null;
   return res.json();
+}
+
+function callJsonApi(path, body) {
+  return callApi(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 function renderRows(tableId, rows, columns) {
@@ -56,9 +73,10 @@ function renderRows(tableId, rows, columns) {
   tbody.innerHTML = "";
   for (const row of rows) {
     const tr = document.createElement("tr");
-    tr.innerHTML = columns.map((c) => `<td>${row[c] ?? ""}</td>`).join("");
+    tr.innerHTML = columns.map((c) => `<td>${escapeHtml(row[c])}</td>`).join("");
     tbody.appendChild(tr);
   }
+  return tbody;
 }
 
 $("btn-get").addEventListener("click", async () => {
@@ -66,7 +84,7 @@ $("btn-get").addEventListener("click", async () => {
   if (!oid) return setStatus("Bitte eine OID angeben.", true);
   setStatus("GET läuft…");
   try {
-    const rows = await callApi("/api/snmp/get", { ...currentTarget(), oids: [oid] });
+    const rows = await callJsonApi("/api/snmp/get", { ...currentTarget(), oids: [oid] });
     renderRows("snmp-result", rows, ["oid", "name", "type", "value"]);
     setStatus(`${rows.length} Ergebnis(se).`);
   } catch (e) {
@@ -79,7 +97,7 @@ $("btn-walk").addEventListener("click", async () => {
   if (!oid) return setStatus("Bitte eine OID angeben.", true);
   setStatus("WALK läuft…");
   try {
-    const rows = await callApi("/api/snmp/walk", { ...currentTarget(), oid });
+    const rows = await callJsonApi("/api/snmp/walk", { ...currentTarget(), oid });
     renderRows("snmp-result", rows, ["oid", "name", "type", "value"]);
     setStatus(`${rows.length} Ergebnis(se).`);
   } catch (e) {
@@ -92,10 +110,96 @@ $("btn-scan").addEventListener("click", async () => {
   if (!host) return setStatus("Bitte einen Host angeben.", true);
   setStatus("Scan läuft…");
   try {
-    const rows = await callApi("/api/portscan", { host, ports: $("ports").value.trim() });
+    const rows = await callJsonApi("/api/portscan", { host, ports: $("ports").value.trim() });
     renderRows("scan-result", rows, ["port", "protocol", "state", "service"]);
     setStatus(`${rows.length} Port(s) gefunden.`);
   } catch (e) {
     setStatus(e.message, true);
   }
 });
+
+async function loadMibs() {
+  const rows = await callApi("/api/mibs");
+  const tbody = renderRows(
+    "mib-result",
+    rows.map((r) => ({ ...r, compiled: r.compiled ? "ja" : "nein" })),
+    ["name", "compiled"]
+  );
+  if (currentRole === "admin") {
+    [...tbody.rows].forEach((tr, i) => {
+      const td = document.createElement("td");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Löschen";
+      btn.addEventListener("click", () => deleteMib(rows[i].name));
+      td.appendChild(btn);
+      tr.appendChild(td);
+    });
+  }
+}
+
+async function deleteMib(name) {
+  setStatus(`Lösche MIB ${name}…`);
+  try {
+    await callApi(`/api/mibs/${encodeURIComponent(name)}`, { method: "DELETE" });
+    setStatus(`MIB ${name} gelöscht.`);
+    await loadMibs();
+  } catch (e) {
+    setStatus(e.message, true);
+  }
+}
+
+const mibUploadBtn = $("btn-mib-upload");
+if (mibUploadBtn) {
+  mibUploadBtn.addEventListener("click", async () => {
+    const fileInput = $("mib-file");
+    const file = fileInput.files[0];
+    if (!file) return setStatus("Bitte eine MIB-Datei auswählen.", true);
+    setStatus("MIB wird hochgeladen und kompiliert…");
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const result = await callApi("/api/mibs", { method: "POST", body: formData });
+      setStatus(`MIB ${result.name} kompiliert.`);
+      fileInput.value = "";
+      await loadMibs();
+    } catch (e) {
+      setStatus(e.message, true);
+    }
+  });
+}
+
+async function loadAudit() {
+  const rows = await callApi("/api/audit?limit=200");
+  renderRows(
+    "audit-result",
+    rows.map((r) => ({ ...r, success: r.success ? "ja" : "nein" })),
+    ["ts", "username", "action", "host", "target", "success", "detail"]
+  );
+}
+
+const auditRefreshBtn = $("btn-audit-refresh");
+if (auditRefreshBtn) {
+  auditRefreshBtn.addEventListener("click", () => loadAudit().catch((e) => setStatus(e.message, true)));
+}
+
+async function init() {
+  try {
+    const who = await callApi("/api/whoami");
+    currentRole = who.role;
+    $("whoami").textContent = `Angemeldet als ${who.username} (${who.role})`;
+
+    if (who.role === "admin") {
+      $("mib-upload-row").classList.remove("hidden");
+      $("mib-upload-actions").classList.remove("hidden");
+      $("mib-action-header").classList.remove("hidden");
+      $("audit-panel").classList.remove("hidden");
+      loadAudit().catch(() => {});
+    }
+    await loadMibs();
+  } catch (e) {
+    setStatus(e.message, true);
+  }
+}
+
+init();

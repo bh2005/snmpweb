@@ -44,3 +44,18 @@ class PortResultOut(BaseModel):
     protocol: str
     state: str
     service: str
+
+
+class MibOut(BaseModel):
+    name: str
+    compiled: bool
+
+
+class AuditEntryOut(BaseModel):
+    ts: str
+    username: str
+    action: str
+    host: Optional[str] = None
+    target: Optional[str] = None
+    success: bool
+    detail: str = ""

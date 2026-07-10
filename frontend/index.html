@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>snmpweb</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
@@ -9,6 +10,7 @@
   <header>
     <h1>snmpweb</h1>
     <p class="subtitle">SNMP GET / WALK Tester &amp; Port-Check</p>
+    <p class="subtitle" id="whoami"></p>
   </header>
 
   <main>
@@ -59,8 +61,8 @@
         <label class="grow">OID<input id="oid" value="1.3.6.1.2.1.1" /></label>
       </div>
       <div class="actions">
-        <button id="btn-get">GET</button>
-        <button id="btn-walk">WALK</button>
+        <button type="button" id="btn-get">GET</button>
+        <button type="button" id="btn-walk">WALK</button>
       </div>
       <table id="snmp-result">
         <thead>
@@ -76,11 +78,40 @@
         <label class="grow">Ports<input id="ports" value="22,23,80,161,162,443,502,8080" /></label>
       </div>
       <div class="actions">
-        <button id="btn-scan">Scan</button>
+        <button type="button" id="btn-scan">Scan</button>
       </div>
       <table id="scan-result">
         <thead>
           <tr><th>Port</th><th>Protokoll</th><th>Status</th><th>Service</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>MIBs</h2>
+      <div class="grid hidden" id="mib-upload-row">
+        <label class="grow">MIB-Datei (.mib)<input type="file" id="mib-file" accept=".mib,.txt,.my" /></label>
+      </div>
+      <div class="actions hidden" id="mib-upload-actions">
+        <button type="button" id="btn-mib-upload">Hochladen &amp; kompilieren</button>
+      </div>
+      <table id="mib-result">
+        <thead>
+          <tr><th>Name</th><th>Kompiliert</th><th id="mib-action-header" class="hidden">Aktion</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel hidden" id="audit-panel">
+      <h2>Audit-Log</h2>
+      <div class="actions">
+        <button type="button" id="btn-audit-refresh">Aktualisieren</button>
+      </div>
+      <table id="audit-result">
+        <thead>
+          <tr><th>Zeit</th><th>User</th><th>Aktion</th><th>Host</th><th>Ziel</th><th>OK</th><th>Detail</th></tr>
         </thead>
         <tbody></tbody>
       </table>

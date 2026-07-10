@@ -1,8 +1,14 @@
 FROM python:3.12-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nmap \
+    && apt-get install -y --no-install-recommends nmap ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# requests/urllib3 (genutzt fuer MIB-Downloads von mibs.pysnmp.com) bringen
+# ihr eigenes certifi-Zertifikatsbuendel mit und ignorieren sonst zusaetzliche
+# CAs, die per update-ca-certificates ins System eingebracht werden (z.B.
+# bei TLS-Inspection durch einen Firmen-Proxy).
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /app
 

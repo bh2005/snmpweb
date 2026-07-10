@@ -9,6 +9,18 @@ services:
       - "8082:8000"
     env_file:
       - .env
+    environment:
+      # Nur nötig, falls MIB-Uploads Basis-MIBs von mibs.pysnmp.com nachladen
+      # müssen und ausgehender Zugriff über einen Proxy läuft. Werte kommen
+      # aus der lokalen .env (nicht im Repo), hier nur die Variablennamen.
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-}
+    volumes:
+      - ./users.yaml:/app/backend/users.yaml:ro
+      - ./data:/app/backend/data
+      - ./mibs/source:/app/backend/mibs/source
+      - ./mibs/compiled:/app/backend/mibs/compiled
     # Für UDP-Portscans (-sU) statt des Standard-TCP-Connect-Scans würde
     # zusätzlich NET_RAW/NET_ADMIN benötigt, z.B.:
     # cap_add:

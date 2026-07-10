@@ -1,0 +1,10 @@
+# Kopieren nach users.yaml und Passwoerter anpassen.
+# role: admin | viewer
+# admin darf zusaetzlich MIBs hochladen/loeschen und das Audit-Log sehen.
+users:
+  - username: admin
+    password: changeme-admin
+    role: admin
+  - username: viewer
+    password: changeme-viewer
+    role: viewer

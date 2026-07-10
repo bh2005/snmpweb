@@ -1,0 +1,7 @@
+.git
+.env
+users.yaml
+data/
+mibs/
+**/__pycache__
+**/*.pyc

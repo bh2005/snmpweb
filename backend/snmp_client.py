@@ -36,8 +36,22 @@ from pysnmp.hlapi.v3arch.asyncio import (
     usmNoAuthProtocol,
     usmNoPrivProtocol,
 )
+from pysnmp.smi import builder, view
+
+from mib_manager import COMPILED_DIR, compiled_module_names
 
 MAX_WALK_ROWS = 2000
+
+
+def _mib_view_controller() -> view.MibViewController:
+    # Frisch pro Aufruf gebaut, damit neu hochgeladene MIBs ohne Neustart
+    # sofort verfuegbar sind (kein globaler mibBuilder-Cache).
+    mib_builder = builder.MibBuilder()
+    custom_names = compiled_module_names()
+    if custom_names:
+        mib_builder.add_mib_sources(builder.DirMibSource(str(COMPILED_DIR)))
+        mib_builder.load_modules(*custom_names)
+    return view.MibViewController(mib_builder)
 
 AUTH_PROTOCOLS = {
     "MD5": usmHMACMD5AuthProtocol,
@@ -145,6 +159,7 @@ async def snmp_get(target: SnmpTarget, oids: list[str]) -> list[dict]:
 
     if target.version in ("v1", "v2c"):
         dispatcher = SnmpDispatcher()
+        dispatcher.cache["mibViewController"] = _mib_view_controller()
         try:
             transport = await V1UdpTransportTarget.create(
                 (target.host, target.port), timeout=target.timeout, retries=target.retries
@@ -160,6 +175,7 @@ async def snmp_get(target: SnmpTarget, oids: list[str]) -> list[dict]:
             dispatcher.close()
 
     engine = SnmpEngine()
+    engine.cache["mibViewController"] = _mib_view_controller()
     try:
         transport = await V3UdpTransportTarget.create(
             (target.host, target.port), timeout=target.timeout, retries=target.retries
@@ -180,6 +196,7 @@ async def snmp_walk(target: SnmpTarget, oid: str) -> list[dict]:
 
     if target.version in ("v1", "v2c"):
         dispatcher = SnmpDispatcher()
+        dispatcher.cache["mibViewController"] = _mib_view_controller()
         try:
             transport = await V1UdpTransportTarget.create(
                 (target.host, target.port), timeout=target.timeout, retries=target.retries
@@ -204,6 +221,7 @@ async def snmp_walk(target: SnmpTarget, oid: str) -> list[dict]:
             dispatcher.close()
 
     engine = SnmpEngine()
+    engine.cache["mibViewController"] = _mib_view_controller()
     try:
         transport = await V3UdpTransportTarget.create(
             (target.host, target.port), timeout=target.timeout, retries=target.retries
