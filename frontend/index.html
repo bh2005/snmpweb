@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>snmpweb</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>snmpweb</h1>
+    <p class="subtitle">SNMP GET / WALK Tester &amp; Port-Check</p>
+  </header>
+
+  <main>
+    <section class="panel" id="target-panel">
+      <h2>Ziel</h2>
+      <div class="grid">
+        <label>Host<input id="host" placeholder="10.123.40.xx" /></label>
+        <label>Port<input id="port" type="number" value="161" /></label>
+        <label>Version
+          <select id="version">
+            <option value="v2c" selected>v2c</option>
+            <option value="v1">v1</option>
+            <option value="v3">v3</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid" id="v12-fields">
+        <label>Community<input id="community" value="public" /></label>
+      </div>
+
+      <div class="grid hidden" id="v3-fields">
+        <label>Username<input id="v3-username" /></label>
+        <label>Auth-Protokoll
+          <select id="v3-auth-protocol">
+            <option value="none">none</option>
+            <option value="SHA">SHA</option>
+            <option value="SHA256">SHA256</option>
+            <option value="MD5">MD5</option>
+          </select>
+        </label>
+        <label>Auth-Passwort<input id="v3-auth-password" type="password" /></label>
+        <label>Priv-Protokoll
+          <select id="v3-priv-protocol">
+            <option value="none">none</option>
+            <option value="AES128">AES128</option>
+            <option value="AES256">AES256</option>
+            <option value="DES">DES</option>
+          </select>
+        </label>
+        <label>Priv-Passwort<input id="v3-priv-password" type="password" /></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>SNMP Query</h2>
+      <div class="grid">
+        <label class="grow">OID<input id="oid" value="1.3.6.1.2.1.1" /></label>
+      </div>
+      <div class="actions">
+        <button id="btn-get">GET</button>
+        <button id="btn-walk">WALK</button>
+      </div>
+      <table id="snmp-result">
+        <thead>
+          <tr><th>OID</th><th>Name</th><th>Typ</th><th>Wert</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Port-Scan</h2>
+      <div class="grid">
+        <label class="grow">Ports<input id="ports" value="22,23,80,161,162,443,502,8080" /></label>
+      </div>
+      <div class="actions">
+        <button id="btn-scan">Scan</button>
+      </div>
+      <table id="scan-result">
+        <thead>
+          <tr><th>Port</th><th>Protokoll</th><th>Status</th><th>Service</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <p id="status"></p>
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

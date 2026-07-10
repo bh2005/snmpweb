@@ -1,0 +1,6 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+pysnmp>=7.1,<8
+pycryptodomex>=3.20
+python-nmap==0.7.*
+pydantic>=2.7
