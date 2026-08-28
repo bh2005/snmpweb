@@ -25,3 +25,7 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   Datei-Writer per `os.rename()` auf eine bereits existierende Zieldatei
   schreibt (unter Linux unauffällig, da POSIX-`rename` überschreibt) — alte
   kompilierte Datei wird vor dem Kompilieren jetzt explizit entfernt
+- MIB-Download von mibs.pysnmp.com scheiterte hinter TLS-Inspection-Proxies
+  an der Zertifikatsprüfung, weil `requests`/`urllib3` ihr eigenes
+  `certifi`-Bündel nutzen und `update-ca-certificates` ignorieren —
+  `REQUESTS_CA_BUNDLE` zeigt jetzt auf den System-Trust-Store
