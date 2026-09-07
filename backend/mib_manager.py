@@ -14,6 +14,22 @@ from pysmi.parser import SmiV1CompatParser
 from pysmi.reader import FileReader, HttpReader
 from pysmi.searcher import StubSearcher
 from pysmi.writer import PyFileWriter
+from pysnmp.smi import builder
+
+# Module ohne eigene OID-Objekte (ASN.1-Basistypen, interne Stub-Module) -
+# im Baum nicht relevant, werden beim Bauen ausgefiltert.
+_NON_BROWSABLE_MODULES = {"ASN1", "ASN1-ENUMERATION", "ASN1-REFINEMENT"}
+
+# Klassennamen aus SNMPv2-SMI, geprueft in dieser Reihenfolge, um einem
+# Objekt seine Baum-"kind" zuzuordnen.
+_KIND_BY_SMI_CLASS = (
+    ("ModuleIdentity", "module-identity"),
+    ("NotificationType", "notification"),
+    ("MibTable", "table"),
+    ("MibTableRow", "row"),
+    ("MibTableColumn", "leaf"),
+    ("MibScalar", "leaf"),
+)
 
 MIB_REPOSITORY = "https://mibs.pysnmp.com/asn1/@mib@"
 
@@ -112,3 +128,122 @@ def delete_mib(name: str) -> None:
 
     if not removed:
         raise MibError(f"MIB {name} nicht gefunden")
+
+
+def _safe_call(obj, method_name: str):
+    method = getattr(obj, method_name, None)
+    if method is None:
+        return None
+    try:
+        return method()
+    except Exception:
+        return None
+
+
+def _syntax_name(obj) -> str | None:
+    syntax = _safe_call(obj, "getSyntax")
+    return None if syntax is None else type(syntax).__name__
+
+
+def _classify(obj, smi_symbols: dict) -> str:
+    for cls_name, kind in _KIND_BY_SMI_CLASS:
+        cls = smi_symbols.get(cls_name)
+        if cls is not None and isinstance(obj, cls):
+            return kind
+    return "node"
+
+
+def _describe_object(sym_name: str, obj, module_name: str, oid_tuple: tuple, smi_symbols: dict) -> dict:
+    return {
+        "oid_tuple": oid_tuple,
+        "oid": ".".join(str(x) for x in oid_tuple),
+        "name": sym_name,
+        "module": module_name,
+        "kind": _classify(obj, smi_symbols),
+        "origin": None,
+        "syntax": _syntax_name(obj),
+        "access": _safe_call(obj, "getMaxAccess"),
+        "status": _safe_call(obj, "getStatus"),
+        "description": _safe_call(obj, "getDescription"),
+        "children": [],
+    }
+
+
+def _nest_by_oid(nodes: list[dict]) -> list[dict]:
+    # Klassischer "Baum aus sortierten Pfaden"-Aufbau: nach OID-Tupel sortiert
+    # liegen alle Nachfahren eines Knotens direkt danach, bevor das naechste
+    # Geschwister-Element folgt. Ein Stack haelt die aktuelle Vorfahren-Kette.
+    nodes_sorted = sorted(nodes, key=lambda n: n["oid_tuple"])
+    roots: list[dict] = []
+    stack: list[dict] = []
+    for node in nodes_sorted:
+        while stack and not (
+            len(stack[-1]["oid_tuple"]) < len(node["oid_tuple"])
+            and node["oid_tuple"][: len(stack[-1]["oid_tuple"])] == stack[-1]["oid_tuple"]
+        ):
+            stack.pop()
+        (stack[-1]["children"] if stack else roots).append(node)
+        stack.append(node)
+    return roots
+
+
+def _strip_oid_tuple(node: dict) -> dict:
+    node.pop("oid_tuple", None)
+    for child in node["children"]:
+        _strip_oid_tuple(child)
+    return node
+
+
+def build_module_tree() -> list[dict]:
+    """Baut den Baum aller geladenen MIB-Module (Standard + eigene Uploads)
+    fuer den MIB-Browser im Frontend."""
+    mib_builder = builder.MibBuilder()
+    # Ohne loadTexts=True liest pysmi/pysnmp DESCRIPTION/STATUS-Klauseln gar
+    # nicht erst ein (Performance-Default) - fuer den Browser brauchen wir sie.
+    mib_builder.loadTexts = True
+    mib_builder.load_modules()
+
+    custom_names = set(compiled_module_names())
+    if custom_names:
+        mib_builder.add_mib_sources(builder.DirMibSource(str(COMPILED_DIR)))
+        mib_builder.load_modules(*custom_names)
+
+    smi_symbols = mib_builder.mibSymbols.get("SNMPv2-SMI", {})
+
+    modules = []
+    for module_name in sorted(mib_builder.mibSymbols):
+        if module_name.startswith("__") or module_name in _NON_BROWSABLE_MODULES:
+            continue
+
+        nodes = []
+        for sym_name, obj in mib_builder.mibSymbols[module_name].items():
+            get_name = getattr(obj, "getName", None)
+            if get_name is None:
+                continue
+            try:
+                oid_tuple = tuple(int(x) for x in get_name())
+            except Exception:
+                continue
+            if not oid_tuple:
+                continue
+            nodes.append(_describe_object(sym_name, obj, module_name, oid_tuple, smi_symbols))
+
+        if not nodes:
+            continue
+
+        modules.append(
+            {
+                "name": module_name,
+                "oid": "",
+                "module": module_name,
+                "kind": "module",
+                "origin": "custom" if module_name in custom_names else "standard",
+                "syntax": None,
+                "access": None,
+                "status": None,
+                "description": None,
+                "children": _nest_by_oid(nodes),
+            }
+        )
+
+    return [_strip_oid_tuple(m) for m in modules]

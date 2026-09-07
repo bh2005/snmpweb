@@ -6,3 +6,5 @@ venv/
 users.yaml
 /data/
 /mibs/
+frontend/node_modules/
+frontend/dist/

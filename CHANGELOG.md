@@ -16,6 +16,23 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 - Vanilla-JS-Frontend mit rollenabhängig ein-/ausgeblendeten Bereichen
 - Docker-/docker-compose-Setup mit persistenten Volumes für `users.yaml`,
   Audit-DB und MIBs
+- MIB-Browser (`GET /api/mibs/tree`): zeigt alle geladenen MIB-Module (33
+  bei pysnmp mitgelieferte Basis-Module plus eigene Uploads) als auf-
+  klappbaren Baum mit OID, Syntax, Zugriff, Status und Beschreibung je
+  Objekt; Klick auf ein Objekt übernimmt dessen OID in das GET/WALK-Feld
+- Frontend komplett auf Vue 3 (Pinia + Vite + Tailwind) umgestellt, ersetzt
+  das bisherige Vanilla-JS-Frontend; eigene Panels für Query, PortScan,
+  MIB-Browser, MIB-Verwaltung, Audit-Log, Hilfe und Handbuch sowie eine
+  Login-View
+- Port-Scan erweitert: UDP- und kombinierte TCP+UDP-Scans (`-sU`), optionale
+  Service- (`-sV`) und OS-Erkennung (`-O`), wählbares nmap-Timing-Template
+  (`T2`–`T5`); Ergebnis liefert zusätzlich erkanntes Produkt/Version je Port
+  sowie OS-Treffer mit Treffergenauigkeit
+
+### Changed
+- `backend/Dockerfile` auf Multi-Stage-Build umgestellt: eigene
+  `node:20-alpine`-Stage baut das Vite-Frontend, die Python-Stage kopiert
+  nur noch das fertige `frontend/dist`
 
 ### Fixed
 - Eigener Timeout-Guard für SNMP WALK: eine pysnmp-Version-7-Regression lässt
@@ -29,3 +46,9 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   an der Zertifikatsprüfung, weil `requests`/`urllib3` ihr eigenes
   `certifi`-Bündel nutzen und `update-ca-certificates` ignorieren —
   `REQUESTS_CA_BUNDLE` zeigt jetzt auf den System-Trust-Store
+- Docker-Build scheiterte hinter TLS-Inspection-Proxies komplett (`npm
+  install`/`pip install` mit SSL-Fehlern), da weder der Node- noch der
+  Python-Build-Stage die K+S-Root/Zwischen-CA kannten — `backend/certs/`
+  enthält jetzt die K+S-CA-Zertifikate, beide Stages binden sie per
+  `update-ca-certificates` ein (zusätzlich `NODE_EXTRA_CA_CERTS`,
+  `SSL_CERT_FILE`, `PIP_CERT`)

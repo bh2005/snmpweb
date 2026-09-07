@@ -12,8 +12,9 @@ from auth import User, require_admin, require_auth
 from models import (
     AuditEntryOut,
     MibOut,
-    PortResultOut,
+    MibTreeNode,
     PortScanRequest,
+    PortScanResultOut,
     SnmpGetRequest,
     SnmpWalkRequest,
     VarBindOut,
@@ -89,15 +90,23 @@ async def api_snmp_walk(req: SnmpWalkRequest, user: User = Depends(require_auth)
     return result
 
 
-@app.post("/api/portscan", response_model=list[PortResultOut])
+@app.post("/api/portscan", response_model=PortScanResultOut)
 async def api_portscan(req: PortScanRequest, user: User = Depends(require_auth)):
     try:
-        result = await run_in_threadpool(scan_ports, req.host, req.ports or "")
+        result = await run_in_threadpool(
+            scan_ports,
+            req.host,
+            req.ports or "",
+            req.scan_type,
+            req.service_detection,
+            req.os_detection,
+            req.timing,
+        )
     except PortScanError as exc:
         await audit.log_action(user.username, "portscan", req.host, req.ports or "", False, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await audit.log_action(
-        user.username, "portscan", req.host, req.ports or "", True, f"{len(result)} Port(s)"
+        user.username, "portscan", req.host, req.ports or "", True, f"{len(result['ports'])} Port(s)"
     )
     return result
 
@@ -119,6 +128,11 @@ async def api_upload_mib(file: UploadFile = File(...), user: User = Depends(requ
     return {"name": name, "compiled": True}
 
 
+@app.get("/api/mibs/tree", response_model=list[MibTreeNode])
+async def api_mibs_tree(_user: User = Depends(require_auth)):
+    return await run_in_threadpool(mib_manager.build_module_tree)
+
+
 @app.delete("/api/mibs/{name}")
 async def api_delete_mib(name: str, user: User = Depends(require_admin)):
     try:
@@ -135,5 +149,5 @@ async def api_audit(limit: int = 200, _user: User = Depends(require_admin)):
     return await audit.recent(limit)
 
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

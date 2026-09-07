@@ -37,6 +37,10 @@ class VarBindOut(BaseModel):
 class PortScanRequest(BaseModel):
     host: str
     ports: Optional[str] = None
+    scan_type: Literal["tcp", "udp", "tcp+udp"] = "tcp"
+    service_detection: bool = False
+    os_detection: bool = False
+    timing: Literal["T2", "T3", "T4", "T5"] = "T4"
 
 
 class PortResultOut(BaseModel):
@@ -44,11 +48,39 @@ class PortResultOut(BaseModel):
     protocol: str
     state: str
     service: str
+    product: Optional[str] = None
+    version: Optional[str] = None
+
+
+class OsGuessOut(BaseModel):
+    name: str
+    accuracy: int
+
+
+class PortScanResultOut(BaseModel):
+    ports: list[PortResultOut]
+    os_guesses: list[OsGuessOut] = Field(default_factory=list)
 
 
 class MibOut(BaseModel):
     name: str
     compiled: bool
+
+
+class MibTreeNode(BaseModel):
+    name: str
+    oid: str = ""
+    module: Optional[str] = None
+    kind: str
+    origin: Optional[str] = None
+    syntax: Optional[str] = None
+    access: Optional[str] = None
+    status: Optional[str] = None
+    description: Optional[str] = None
+    children: list["MibTreeNode"] = Field(default_factory=list)
+
+
+MibTreeNode.model_rebuild()
 
 
 class AuditEntryOut(BaseModel):
